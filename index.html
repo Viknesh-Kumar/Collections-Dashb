@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ajman Real Estate – Collections Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f7f8fb; }
+    #root { min-height: 100vh; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useMemo } = React;
+
+// ── Sample Data ─────────────────────────────────────────────────────────
+const PROJECTS = [
+  { id: "P1", name: "Ajman Creek" },
+  { id: "P2", name: "Nuaimia" },
+  { id: "P3", name: "Oasis" },
+  { id: "P4", name: "Gulfa" },
+  { id: "P5", name: "Al Ameers" },
+  { id: "P6", name: "Sky Gardens" },
+  { id: "P7", name: "ONE 678" },
+];
+
+const TOWERS = [
+  { id: "T1", projectId: "P1", name: "Tower A" },
+  { id: "T2", projectId: "P1", name: "Tower B" },
+  { id: "T3", projectId: "P1", name: "Tower C" },
+  { id: "T4", projectId: "P2", name: "Tower A" },
+  { id: "T5", projectId: "P2", name: "Tower B" },
+  { id: "T6", projectId: "P3", name: "Tower A" },
+  { id: "T7", projectId: "P3", name: "Tower B" },
+  { id: "T8", projectId: "P4", name: "Tower A" },
+  { id: "T9", projectId: "P4", name: "Tower B" },
+  { id: "T10", projectId: "P5", name: "Tower A" },
+  { id: "T11", projectId: "P5", name: "Tower B" },
+  { id: "T12", projectId: "P5", name: "Tower C" },
+  { id: "T13", projectId: "P6", name: "Tower A" },
+  { id: "T14", projectId: "P6", name: "Tower B" },
+  { id: "T15", projectId: "P7", name: "Tower A" },
+  { id: "T16", projectId: "P7", name: "Tower B" },
+];
+
+const STATUS_POOL = ["Standard","Standard","Standard","Standard","Standard","Standard","1st Bounce","1st Bounce","2nd Bounce","Legal"];
+const UNIT_TYPES = ["Studio", "1BR", "2BR", "3BR", "Penthouse"];
+const FIRST = ["Ahmed","Fatima","Mohammed","Sara","Omar","Layla","Khalid","Noor","Hassan","Aisha","Yusuf","Mariam","Ali","Dana","Rashid","Huda","Tariq","Salma","Zaid","Reem"];
+const LAST = ["Al Maktoum","Al Nahyan","Al Rashid","Khan","Sharma","Patel","Williams","Chen","Dubois","Kim","Santos","Müller","O'Brien","Ivanov","Tanaka"];
+
+function seededRandom(seed) { let s = seed; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+const rand = seededRandom(42);
+const pick = (a) => a[Math.floor(rand() * a.length)];
+const randInt = (lo, hi) => Math.floor(rand() * (hi - lo + 1)) + lo;
+
+function generateUnits() {
+  const units = []; let id = 1;
+  TOWERS.forEach((t) => {
+    const floors = randInt(6, 20), perFloor = randInt(4, 8);
+    for (let f = 1; f <= floors; f++) for (let u = 1; u <= perFloor; u++) {
+      const type = f === floors && u <= 2 ? "Penthouse" : pick(UNIT_TYPES.slice(0, 4));
+      const base = type === "Studio" ? 800000 : type === "1BR" ? 1200000 : type === "2BR" ? 1800000 : type === "3BR" ? 2600000 : 5500000;
+      units.push({ id: `U${String(id++).padStart(4,"0")}`, towerId: t.id, projectId: t.projectId, floor: f, unitNo: `${f}${String(u).padStart(2,"0")}`, type, area: type === "Studio" ? randInt(380,520) : type === "1BR" ? randInt(650,850) : type === "2BR" ? randInt(1000,1350) : type === "3BR" ? randInt(1500,2000) : randInt(2800,4500), price: Math.round(base * (0.85 + rand() * 0.35)), sold: rand() < 0.72 });
+    }
+  });
+  return units;
+}
+
+function generateContracts(units) {
+  return units.filter(u => u.sold).map((unit) => {
+    const status = pick(STATUS_POOL);
+    const totalCheques = randInt(6, 48);
+    const monthsSince = randInt(3, 24);
+    const depRatio = Math.min(1, (monthsSince / totalCheques) * (0.8 + rand() * 0.3));
+    const deposited = Math.min(totalCheques, Math.floor(totalCheques * depRatio));
+    const cleared = status === "Standard" ? deposited : status === "1st Bounce" ? deposited - 1 : status === "2nd Bounce" ? deposited - 2 : deposited - randInt(2, 4);
+    const perCheque = Math.round(unit.price / totalCheques);
+    const collected = Math.max(0, cleared) * perCheque;
+    const bounced = status === "Standard" ? 0 : status === "1st Bounce" ? 1 : status === "2nd Bounce" ? 2 : randInt(3, 5);
+    const dueCheques = Math.min(totalCheques, Math.max(deposited, Math.floor(monthsSince * (0.9 + rand() * 0.2))));
+    const amountDue = dueCheques * perCheque;
+    return {
+      unitId: unit.id, towerId: unit.towerId, projectId: unit.projectId,
+      buyer: `${pick(FIRST)} ${pick(LAST)}`,
+      saleDate: `${2024 + (rand() < 0.4 ? 0 : 1)}-${String(randInt(1,12)).padStart(2,"0")}-${String(randInt(1,28)).padStart(2,"0")}`,
+      salePrice: unit.price, totalCheques,
+      chequesDeposited: Math.max(0, deposited),
+      chequesOutstanding: totalCheques - Math.max(0, deposited),
+      chequesBounced: bounced,
+      chequesDueTillDate: dueCheques,
+      amountDueTillDate: amountDue,
+      collectedAmount: collected,
+      outstandingAmount: Math.max(0, unit.price - collected),
+      overdue: Math.max(0, amountDue - collected),
+      status, unitType: unit.type, unitNo: unit.unitNo, floor: unit.floor, area: unit.area,
+    };
+  });
+}
+
+const ALL_UNITS = generateUnits();
+const ALL_CONTRACTS = generateContracts(ALL_UNITS);
+
+// ── Formatters ──────────────────────────────────────────────────────────
+const fmtC = (v) => v >= 1e9 ? `AED ${(v/1e9).toFixed(2)}B` : v >= 1e6 ? `AED ${(v/1e6).toFixed(2)}M` : v >= 1e3 ? `AED ${(v/1e3).toFixed(0)}K` : `AED ${v.toLocaleString()}`;
+const fmtP = (v) => `${(v * 100).toFixed(1)}%`;
+const fmtN = (v) => v.toLocaleString();
+
+// ── Mini Components ─────────────────────────────────────────────────────
+function MiniBar({ data, color, height = 48 }) {
+  const mx = Math.max(...data, 1);
+  return (<div style={{ display:"flex", alignItems:"flex-end", gap:2, height }}>{data.map((v,i) => (<div key={i} style={{ flex:1, height:`${(v/mx)*100}%`, minHeight: v>0?3:0, background:color, borderRadius:"2px 2px 0 0", opacity:0.5+(i/data.length)*0.5 }} />))}</div>);
+}
+
+function Donut({ segments, size=110, thickness=16 }) {
+  const total = segments.reduce((s,g) => s+g.value, 0);
+  const r = (size-thickness)/2, circ = 2*Math.PI*r;
+  let off = 0;
+  return (<svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e8ecf1" strokeWidth={thickness} />
+    {segments.map((seg,i) => { const d = circ*(total>0?seg.value/total:0); const el = (<circle key={i} cx={size/2} cy={size/2} r={r} fill="none" stroke={seg.color} strokeWidth={thickness} strokeDasharray={`${d} ${circ-d}`} strokeDashoffset={-off} transform={`rotate(-90 ${size/2} ${size/2})`} style={{transition:"all 0.5s"}} />); off+=d; return el; })}
+  </svg>);
+}
+
+function Bar3({ a, b, c }) {
+  const t = a+b+c||1;
+  return (<div style={{ display:"flex", height:7, borderRadius:4, overflow:"hidden", background:"#e8ecf1" }}>
+    <div style={{ width:`${(a/t)*100}%`, background:"#22c55e", transition:"width 0.4s" }} />
+    <div style={{ width:`${(b/t)*100}%`, background:"#f59e0b", transition:"width 0.4s" }} />
+    <div style={{ width:`${(c/t)*100}%`, background:"#ef4444", transition:"width 0.4s" }} />
+  </div>);
+}
+
+// ── Colors ───────────────────────────────────────────────────────────────
+const C = {
+  bg: "#f7f8fb", card: "#ffffff", cardBorder: "#e5e7ed", accent: "#1e3a5f",
+  gold: "#b8860b", green: "#16a34a", blue: "#2563eb", amber: "#d97706",
+  orange: "#ea580c", red: "#dc2626", purple: "#7c3aed",
+  textPrimary: "#1a1f2e", textSecondary: "#5b6478", textMuted: "#8b95a8",
+  divider: "#eaecf2", hover: "#f1f3f8",
+};
+
+const statusColors = { Standard:"#16a34a", "1st Bounce":"#d97706", "2nd Bounce":"#ea580c", Legal:"#dc2626" };
+const badgeStyle = (type) => {
+  const map = {
+    Standard: { bg:"#f0fdf4", fg:"#16a34a", bd:"#bbf7d0" },
+    "1st Bounce": { bg:"#fffbeb", fg:"#d97706", bd:"#fde68a" },
+    "2nd Bounce": { bg:"#fff7ed", fg:"#ea580c", bd:"#fed7aa" },
+    Legal: { bg:"#fef2f2", fg:"#dc2626", bd:"#fecaca" },
+  };
+  const m = map[type] || map.Standard;
+  return { display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:m.bg, color:m.fg, border:`1px solid ${m.bd}` };
+};
+
+// ── Dashboard ───────────────────────────────────────────────────────────
+function Dashboard() {
+  const [proj, setProj] = useState("ALL");
+  const [tower, setTower] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [uType, setUType] = useState("ALL");
+  const [view, setView] = useState("overview");
+  const [sortCol, setSortCol] = useState("overdue");
+  const [sortDir, setSortDir] = useState("desc");
+  const [search, setSearch] = useState("");
+
+  const towers = useMemo(() => proj === "ALL" ? TOWERS : TOWERS.filter(t => t.projectId === proj), [proj]);
+
+  const fc = useMemo(() => ALL_CONTRACTS.filter(c => {
+    if (proj !== "ALL" && c.projectId !== proj) return false;
+    if (tower !== "ALL" && c.towerId !== tower) return false;
+    if (status !== "ALL" && c.status !== status) return false;
+    if (uType !== "ALL" && c.unitType !== uType) return false;
+    if (search && !c.buyer.toLowerCase().includes(search.toLowerCase()) && !c.unitId.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }), [proj, tower, status, uType, search]);
+
+  const fu = useMemo(() => ALL_UNITS.filter(u => {
+    if (proj !== "ALL" && u.projectId !== proj) return false;
+    if (tower !== "ALL" && u.towerId !== tower) return false;
+    if (uType !== "ALL" && u.type !== uType) return false;
+    return true;
+  }), [proj, tower, uType]);
+
+  const kpi = useMemo(() => {
+    const totalUnits = fu.length, sold = fc.length, unsold = totalUnits - sold;
+    const saleVal = fc.reduce((s,c) => s+c.salePrice, 0);
+    const collected = fc.reduce((s,c) => s+c.collectedAmount, 0);
+    const outstanding = fc.reduce((s,c) => s+c.outstandingAmount, 0);
+    const amtDue = fc.reduce((s,c) => s+c.amountDueTillDate, 0);
+    const overdue = fc.reduce((s,c) => s+c.overdue, 0);
+    const chqDep = fc.reduce((s,c) => s+c.chequesDeposited, 0);
+    const chqOut = fc.reduce((s,c) => s+c.chequesOutstanding, 0);
+    const chqBnc = fc.reduce((s,c) => s+c.chequesBounced, 0);
+    const chqDue = fc.reduce((s,c) => s+c.chequesDueTillDate, 0);
+    const good = fc.filter(c => c.status==="Standard").length;
+    const b1 = fc.filter(c => c.status==="1st Bounce").length;
+    const b2 = fc.filter(c => c.status==="2nd Bounce").length;
+    const legal = fc.filter(c => c.status==="Legal").length;
+    return {
+      totalUnits, sold, unsold, saleVal, collected, outstanding, amtDue, overdue,
+      chqDep, chqOut, chqBnc, chqDue, good, b1, b2, legal,
+      sellThrough: totalUnits > 0 ? sold/totalUnits : 0,
+      collEff: amtDue > 0 ? collected/amtDue : 0,
+      realizationRate: saleVal > 0 ? collected/saleVal : 0,
+      bounceRate: sold > 0 ? (b1+b2+legal)/sold : 0,
+      overdueRate: amtDue > 0 ? overdue/amtDue : 0,
+      avgPrice: sold > 0 ? saleVal/sold : 0,
+      avgPsf: sold > 0 ? saleVal/fc.reduce((s,c)=>s+c.area,0) : 0,
+    };
+  }, [fc, fu]);
+
+  const projBreak = useMemo(() => PROJECTS.map(p => {
+    const pc = ALL_CONTRACTS.filter(c => c.projectId===p.id);
+    const pu = ALL_UNITS.filter(u => u.projectId===p.id);
+    const val = pc.reduce((s,c)=>s+c.salePrice,0);
+    const col = pc.reduce((s,c)=>s+c.collectedAmount,0);
+    const due = pc.reduce((s,c)=>s+c.amountDueTillDate,0);
+    const ovd = pc.reduce((s,c)=>s+c.overdue,0);
+    const prob = pc.filter(c=>c.status!=="Standard").length;
+    return { ...p, total:pu.length, sold:pc.length, val, col, due, ovd, prob, collEff: due>0?col/due:0, realRate: val>0?col/val:0 };
+  }), []);
+
+  const monthlyData = useMemo(() => {
+    const m = [];
+    for (let i=0;i<12;i++) m.push(Math.round(fc.length * 45000 * (0.7+rand()*0.6)));
+    return m;
+  }, [fc.length]);
+
+  const sorted = useMemo(() => [...fc].sort((a,b) => {
+    const av=a[sortCol], bv=b[sortCol];
+    if (typeof av==="number") return sortDir==="asc"?av-bv:bv-av;
+    return sortDir==="asc"?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+  }), [fc, sortCol, sortDir]);
+
+  const doSort = (c) => { if (sortCol===c) setSortDir(sortDir==="asc"?"desc":"asc"); else { setSortCol(c); setSortDir("desc"); } };
+
+  // ── Styles ──────────────────────────────────────────────────────────
+  const card = { background:C.card, border:`1px solid ${C.cardBorder}`, borderRadius:12, padding:"16px 18px", position:"relative", boxShadow:"0 1px 3px rgba(0,0,0,0.04)" };
+  const glow = (color) => ({ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg, ${color}, transparent)`, borderRadius:"12px 12px 0 0" });
+  const lbl = { fontSize:11, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.07em", fontWeight:700, marginBottom:5 };
+  const val = { fontSize:26, fontWeight:800, letterSpacing:"-0.02em" };
+  const sub = { fontSize:12, color:C.textMuted, marginTop:3 };
+  const sel = { background:C.card, border:`1px solid ${C.cardBorder}`, borderRadius:8, color:C.textPrimary, padding:"7px 12px", fontSize:13, outline:"none", minWidth:130, cursor:"pointer" };
+  const inp = { background:C.card, border:`1px solid ${C.cardBorder}`, borderRadius:8, color:C.textPrimary, padding:"7px 14px", fontSize:13, outline:"none", flex:"1 1 200px", maxWidth:260 };
+  const tabBtn = (a) => ({ padding:"7px 16px", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer", border:"none", background:a?C.accent:"transparent", color:a?"#fff":C.textSecondary, transition:"all 0.2s" });
+  const th = { textAlign:"left", padding:"8px 10px", fontSize:10.5, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, cursor:"pointer", userSelect:"none", borderBottom:`1px solid ${C.divider}`, whiteSpace:"nowrap" };
+  const td = { padding:"8px 10px", borderBottom:`1px solid ${C.divider}`, whiteSpace:"nowrap", fontSize:12.5 };
+  const mono = { fontFamily:"'SF Mono','Consolas',monospace", fontSize:12 };
+
+  return (
+    <div style={{ fontFamily:"'DM Sans','Segoe UI',system-ui,sans-serif", background:C.bg, color:C.textPrimary, minHeight:"100vh", padding:20, boxSizing:"border-box" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div style={{ fontSize:24, fontWeight:800, letterSpacing:"-0.02em", color:C.accent }}>Collections Dashboard</div>
+          <div style={{ fontSize:13, color:C.textMuted, marginTop:1 }}>Ajman Real Estate · Sales & Collections Tracker</div>
+        </div>
+        <div style={{ display:"flex", gap:3, background:C.card, border:`1px solid ${C.cardBorder}`, borderRadius:10, padding:3 }}>
+          {[["overview","Overview"],["detail","Unit Details"],["project","By Project"]].map(([k,l]) => (
+            <button key={k} style={tabBtn(view===k)} onClick={() => setView(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:18, alignItems:"center" }}>
+        <select style={sel} value={proj} onChange={e => { setProj(e.target.value); setTower("ALL"); }}>
+          <option value="ALL">All Projects</option>
+          {PROJECTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select style={sel} value={tower} onChange={e => setTower(e.target.value)}>
+          <option value="ALL">All Towers</option>
+          {towers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select style={sel} value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="ALL">All Statuses</option>
+          <option value="Standard">Standard</option>
+          <option value="1st Bounce">1st Bounce</option>
+          <option value="2nd Bounce">2nd Bounce</option>
+          <option value="Legal">Legal</option>
+        </select>
+        <select style={sel} value={uType} onChange={e => setUType(e.target.value)}>
+          <option value="ALL">All Types</option>
+          {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input style={inp} placeholder="Search buyer or unit ID…" value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      {/* ═══ OVERVIEW ═══ */}
+      {view === "overview" && (<>
+        {/* KPI Row 1 — Inventory & Sales */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:12, marginBottom:14 }}>
+          {[
+            { l:"Total Inventory", v:fmtN(kpi.totalUnits), s:`${fmtP(kpi.sellThrough)} sell-through`, c:C.purple },
+            { l:"Units Sold", v:fmtN(kpi.sold), s:`${fmtN(kpi.unsold)} unsold`, c:C.green },
+            { l:"Total Sale Value", v:fmtC(kpi.saleVal), s:`Avg ${fmtC(kpi.avgPrice)}/unit`, c:C.gold },
+            { l:"Avg Price / Sq.Ft", v:`AED ${Math.round(kpi.avgPsf).toLocaleString()}`, s:"Across sold units", c:C.accent },
+          ].map((k,i) => (
+            <div key={i} style={card}><div style={glow(k.c)} /><div style={lbl}>{k.l}</div><div style={{...val,color:k.c}}>{k.v}</div><div style={sub}>{k.s}</div></div>
+          ))}
+        </div>
+
+        {/* KPI Row 2 — Collections */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:12, marginBottom:14 }}>
+          {[
+            { l:"Amount Due Till Date", v:fmtC(kpi.amtDue), s:`${fmtN(kpi.chqDue)} cheques due`, c:C.blue },
+            { l:"Total Collected", v:fmtC(kpi.collected), s:`${fmtP(kpi.collEff)} collection efficiency`, c:C.green },
+            { l:"Overdue Amount", v:fmtC(kpi.overdue), s:`${fmtP(kpi.overdueRate)} of amount due`, c:C.red },
+            { l:"Cheques Bounced", v:fmtN(kpi.chqBnc), s:`${fmtP(kpi.bounceRate)} bounce rate`, c:C.orange },
+          ].map((k,i) => (
+            <div key={i} style={card}><div style={glow(k.c)} /><div style={lbl}>{k.l}</div><div style={{...val,color:k.c}}>{k.v}</div><div style={sub}>{k.s}</div></div>
+          ))}
+        </div>
+
+        {/* Charts Row */}
+        <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:14, marginBottom:18 }}>
+          {/* Monthly */}
+          <div style={card}>
+            <div style={lbl}>Monthly Collection Trend</div>
+            <div style={{ marginTop:10 }}>
+              <MiniBar data={monthlyData} color={C.green} height={90} />
+              <div style={{ display:"flex", justifyContent:"space-between", marginTop:5, fontSize:10, color:C.textMuted }}>
+                {["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"].map(m => <span key={m}>{m}</span>)}
+              </div>
+            </div>
+          </div>
+
+          {/* Status Donut */}
+          <div style={card}>
+            <div style={lbl}>Customer Status</div>
+            <div style={{ display:"flex", alignItems:"center", gap:14, marginTop:6 }}>
+              <Donut size={96} thickness={14} segments={[
+                { value:kpi.good, color:statusColors.Standard },
+                { value:kpi.b1, color:statusColors["1st Bounce"] },
+                { value:kpi.b2, color:statusColors["2nd Bounce"] },
+                { value:kpi.legal, color:statusColors.Legal },
+              ]} />
+              <div style={{ fontSize:12 }}>
+                {[{l:"Standard",n:kpi.good,c:statusColors.Standard},{l:"1st Bounce",n:kpi.b1,c:statusColors["1st Bounce"]},{l:"2nd Bounce",n:kpi.b2,c:statusColors["2nd Bounce"]},{l:"Legal",n:kpi.legal,c:statusColors.Legal}].map(s => (
+                  <div key={s.l} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:5 }}>
+                    <div style={{ width:7, height:7, borderRadius:"50%", background:s.c, flexShrink:0 }} />
+                    <span style={{ color:C.textSecondary }}>{s.l}</span>
+                    <span style={{ fontWeight:700, color:s.c, marginLeft:"auto" }}>{s.n}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Key Ratios */}
+          <div style={card}>
+            <div style={lbl}>Key Ratios</div>
+            <div style={{ marginTop:6 }}>
+              {[
+                { l:"Sell-Through", v:kpi.sellThrough, c:C.green, t:"Sold ÷ Total" },
+                { l:"Collection Efficiency", v:kpi.collEff, c:C.blue, t:"Collected ÷ Due" },
+                { l:"Realization Rate", v:kpi.realizationRate, c:C.purple, t:"Collected ÷ Sale Value" },
+                { l:"Bounce Rate", v:kpi.bounceRate, c:C.red, t:"Problem ÷ Sold" },
+                { l:"Overdue Rate", v:kpi.overdueRate, c:C.orange, t:"Overdue ÷ Due" },
+              ].map(r => (
+                <div key={r.l} style={{ marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}>
+                    <span style={{ color:C.textSecondary }}>{r.l}</span>
+                    <span style={{ fontWeight:700, color:r.c }}>{fmtP(r.v)}</span>
+                  </div>
+                  <div style={{ height:5, borderRadius:3, background:C.divider }}>
+                    <div style={{ height:"100%", borderRadius:3, background:r.c, width:`${Math.min(r.v*100,100)}%`, transition:"width 0.5s" }} />
+                  </div>
+                  <div style={{ fontSize:9, color:C.textMuted, marginTop:1 }}>{r.t}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Outstanding */}
+        <div style={card}>
+          <div style={lbl}>Top 10 Outstanding Accounts</div>
+          <div style={{ overflowX:"auto", marginTop:8 }}>
+            <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:"0 3px", fontSize:12.5 }}>
+              <thead><tr>
+                {["Unit","Buyer","Sale Price","Due Till Date","Collected","Overdue","Coll. Eff.","Status"].map(h => <th key={h} style={th}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {[...fc].sort((a,b)=>b.outstandingAmount-a.outstandingAmount).slice(0,10).map(c => {
+                  const eff = c.amountDueTillDate>0?c.collectedAmount/c.amountDueTillDate:0;
+                  return (<tr key={c.unitId} style={{ background:C.hover }}>
+                    <td style={{ ...td, fontWeight:600, color:C.blue }}>{c.unitId}</td>
+                    <td style={td}>{c.buyer}</td>
+                    <td style={{...td,...mono}}>{fmtC(c.salePrice)}</td>
+                    <td style={{...td,...mono,color:C.blue}}>{fmtC(c.amountDueTillDate)}</td>
+                    <td style={{...td,...mono,color:C.green}}>{fmtC(c.collectedAmount)}</td>
+                    <td style={{...td,...mono,color:c.overdue>0?C.orange:C.textMuted,fontWeight:c.overdue>0?600:400}}>{fmtC(c.overdue)}</td>
+                    <td style={td}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <div style={{ flex:1, maxWidth:55, height:5, borderRadius:3, background:C.divider }}>
+                          <div style={{ height:"100%", borderRadius:3, background:eff>=0.9?C.green:eff>=0.7?C.blue:eff>=0.5?C.amber:C.red, width:`${Math.min(eff*100,100)}%` }} />
+                        </div>
+                        <span style={{ fontSize:11, color:C.textMuted }}>{fmtP(eff)}</span>
+                      </div>
+                    </td>
+                    <td style={td}><span style={badgeStyle(c.status)}>{c.status}</span></td>
+                  </tr>);
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>)}
+
+      {/* ═══ UNIT DETAILS ═══ */}
+      {view === "detail" && (
+        <div style={card}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div style={lbl}>All Contracts · {fmtN(sorted.length)} records</div>
+            <div style={{ fontSize:11, color:C.textMuted }}>Click headers to sort</div>
+          </div>
+          <div style={{ overflowX:"auto", maxHeight:580, overflowY:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:"0 2px", fontSize:12 }}>
+              <thead style={{ position:"sticky", top:0, background:C.card, zIndex:2 }}>
+                <tr>
+                  {[
+                    {k:"unitId",l:"Unit"},{k:"unitNo",l:"Unit #"},{k:"unitType",l:"Type"},{k:"buyer",l:"Buyer"},{k:"saleDate",l:"Sale Date"},
+                    {k:"salePrice",l:"Sale Price"},{k:"amountDueTillDate",l:"Due Till Date"},{k:"collectedAmount",l:"Collected"},{k:"overdue",l:"Overdue"},
+                    {k:"outstandingAmount",l:"Outstanding"},{k:"totalCheques",l:"Tot. Chqs"},{k:"chequesDueTillDate",l:"Due"},{k:"chequesDeposited",l:"Dep."},{k:"chequesBounced",l:"Bnc."},
+                    {k:"status",l:"Status"},
+                  ].map(c => (
+                    <th key={c.k} style={{...th, color:sortCol===c.k?C.accent:C.textMuted}} onClick={() => doSort(c.k)}>
+                      {c.l} {sortCol===c.k?(sortDir==="asc"?"↑":"↓"):""}
+                    </th>
+                  ))}
+                  <th style={th}>Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.slice(0,100).map(c => (
+                  <tr key={c.unitId} style={{ background:c.status==="Legal"?"#fef2f2":c.status.includes("Bounce")?"#fffbeb":"transparent" }}>
+                    <td style={{...td,fontWeight:600,color:C.blue}}>{c.unitId}</td>
+                    <td style={td}>{c.unitNo}</td>
+                    <td style={td}>{c.unitType}</td>
+                    <td style={{...td,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis"}}>{c.buyer}</td>
+                    <td style={td}>{c.saleDate}</td>
+                    <td style={{...td,...mono}}>{fmtC(c.salePrice)}</td>
+                    <td style={{...td,...mono,color:C.blue}}>{fmtC(c.amountDueTillDate)}</td>
+                    <td style={{...td,...mono,color:C.green}}>{fmtC(c.collectedAmount)}</td>
+                    <td style={{...td,...mono,color:c.overdue>0?C.orange:C.textMuted,fontWeight:c.overdue>0?600:400}}>{fmtC(c.overdue)}</td>
+                    <td style={{...td,...mono,color:C.amber,fontWeight:600}}>{fmtC(c.outstandingAmount)}</td>
+                    <td style={{...td,textAlign:"center"}}>{c.totalCheques}</td>
+                    <td style={{...td,textAlign:"center",color:C.blue}}>{c.chequesDueTillDate}</td>
+                    <td style={{...td,textAlign:"center",color:C.green}}>{c.chequesDeposited}</td>
+                    <td style={{...td,textAlign:"center",color:c.chequesBounced>0?C.red:C.textMuted}}>{c.chequesBounced}</td>
+                    <td style={td}><span style={badgeStyle(c.status)}>{c.status}</span></td>
+                    <td style={{...td,minWidth:110}}>
+                      <Bar3 a={c.collectedAmount} b={Math.max(0,c.outstandingAmount-(c.chequesBounced*(c.salePrice/c.totalCheques)))} c={c.chequesBounced*(c.salePrice/c.totalCheques)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {sorted.length > 100 && <div style={{ textAlign:"center", padding:10, color:C.textMuted, fontSize:12 }}>Showing 100 of {fmtN(sorted.length)} records</div>}
+          <div style={{ display:"flex", gap:16, marginTop:10, fontSize:11, color:C.textMuted, justifyContent:"center" }}>
+            <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:10, height:6, borderRadius:2, background:C.green, display:"inline-block" }} /> Collected</span>
+            <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:10, height:6, borderRadius:2, background:C.amber, display:"inline-block" }} /> Pending</span>
+            <span style={{ display:"flex", alignItems:"center", gap:4 }}><span style={{ width:10, height:6, borderRadius:2, background:C.red, display:"inline-block" }} /> Bounced</span>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ BY PROJECT ═══ */}
+      {view === "project" && (<>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(320px, 1fr))", gap:14, marginBottom:18 }}>
+          {projBreak.map(p => (
+            <div key={p.id} style={{...card, padding:22}}>
+              <div style={glow(C.accent)} />
+              <div style={{ fontSize:17, fontWeight:800, color:C.accent, marginBottom:12 }}>{p.name}</div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                <div><div style={{ fontSize:10, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.06em" }}>Units Sold / Total</div><div style={{ fontSize:20, fontWeight:800, color:C.purple }}>{p.sold}<span style={{ fontSize:13, color:C.textMuted }}>/{p.total}</span></div></div>
+                <div><div style={{ fontSize:10, color:C.textMuted, textTransform:"uppercase", letterSpacing:"0.06em" }}>Total Sale Value</div><div style={{ fontSize:20, fontWeight:800, color:C.gold }}>{fmtC(p.val)}</div></div>
+              </div>
+
+              <div style={{ marginBottom:14 }}>
+                {[{l:"Collection Efficiency",v:p.collEff,c:C.blue},{l:"Realization Rate",v:p.realRate,c:C.green}].map(r => (
+                  <div key={r.l} style={{ marginBottom:8 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:3 }}>
+                      <span style={{ color:C.textSecondary }}>{r.l}</span>
+                      <span style={{ fontWeight:700, color:r.c }}>{fmtP(r.v)}</span>
+                    </div>
+                    <div style={{ height:5, borderRadius:3, background:C.divider }}>
+                      <div style={{ height:"100%", borderRadius:3, background:r.c, width:`${Math.min(r.v*100,100)}%`, transition:"width 0.5s" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:6, fontSize:11 }}>
+                {[{l:"Collected",v:fmtC(p.col),c:C.green},{l:"Due",v:fmtC(p.due),c:C.blue},{l:"Overdue",v:fmtC(p.ovd),c:C.orange},{l:"Problem",v:p.prob,c:C.red}].map(x => (
+                  <div key={x.l} style={{ background:C.hover, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+                    <div style={{ color:x.c, fontWeight:800, fontSize:13 }}>{x.v}</div>
+                    <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{x.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Comparison */}
+        <div style={card}>
+          <div style={lbl}>Cross-Project Comparison</div>
+          <div style={{ overflowX:"auto", marginTop:8 }}>
+            <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:"0 3px", fontSize:12 }}>
+              <thead><tr>
+                {["Project","Total","Sold","Sell-Through","Sale Value","Due","Collected","Overdue","Coll. Eff.","Realization","Problem"].map(h => <th key={h} style={th}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {projBreak.map(p => (
+                  <tr key={p.id}>
+                    <td style={{...td,fontWeight:700,color:C.accent}}>{p.name}</td>
+                    <td style={{...td,textAlign:"center"}}>{p.total}</td>
+                    <td style={{...td,textAlign:"center",color:C.purple,fontWeight:600}}>{p.sold}</td>
+                    <td style={{...td,textAlign:"center"}}>{fmtP(p.total>0?p.sold/p.total:0)}</td>
+                    <td style={{...td,...mono}}>{fmtC(p.val)}</td>
+                    <td style={{...td,...mono,color:C.blue}}>{fmtC(p.due)}</td>
+                    <td style={{...td,...mono,color:C.green}}>{fmtC(p.col)}</td>
+                    <td style={{...td,...mono,color:p.ovd>0?C.orange:C.textMuted}}>{fmtC(p.ovd)}</td>
+                    <td style={td}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <div style={{ flex:1, maxWidth:50, height:5, borderRadius:3, background:C.divider }}>
+                          <div style={{ height:"100%", borderRadius:3, background:C.blue, width:`${Math.min(p.collEff*100,100)}%` }} />
+                        </div>
+                        <span style={{ fontSize:11, fontWeight:600, color:C.blue }}>{fmtP(p.collEff)}</span>
+                      </div>
+                    </td>
+                    <td style={td}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <div style={{ flex:1, maxWidth:50, height:5, borderRadius:3, background:C.divider }}>
+                          <div style={{ height:"100%", borderRadius:3, background:C.green, width:`${p.realRate*100}%` }} />
+                        </div>
+                        <span style={{ fontSize:11, fontWeight:600 }}>{fmtP(p.realRate)}</span>
+                      </div>
+                    </td>
+                    <td style={{...td,textAlign:"center",color:p.prob>0?C.red:C.textMuted}}>{p.prob}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>)}
+
+      <div style={{ textAlign:"center", padding:"18px 0 6px", fontSize:11, color:C.textMuted }}>
+        Sample Dashboard · {ALL_UNITS.length} Units · {ALL_CONTRACTS.length} Contracts · Illustrative Data Only
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Dashboard />);
+  </script>
+</body>
+</html>
